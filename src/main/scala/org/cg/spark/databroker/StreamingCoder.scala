@@ -1,4 +1,4 @@
-package org.cg.platform.databroker
+package org.cg.spark.databroker
 
 import kafka.serializer.Decoder
 import kafka.serializer.Encoder

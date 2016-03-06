@@ -1,4 +1,4 @@
-package org.cg.platform.databroker
+package org.cg.spark.databroker
 
 import org.apache.spark.Logging
 import spark.jobserver.SparkJob

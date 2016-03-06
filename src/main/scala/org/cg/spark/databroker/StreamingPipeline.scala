@@ -1,4 +1,4 @@
-package org.cg.platform.databroker
+package org.cg.spark.databroker
 
 import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.dstream.InputDStream

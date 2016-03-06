@@ -1,8 +1,10 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <modelVersion>4.0.0</modelVersion>
-  <artifactId>org.cg.spark-databroker</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
-  <name>data brokers implemented using spark</name>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>com.github.codegerm</groupId>
+	<artifactId>org.cg.spark-databroker</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>data brokers implemented using spark</name>
 
 
 	<properties>
@@ -115,7 +117,7 @@
 			<version>${spark.version}</version>
 			<scope>provided</scope>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>spark.jobserver</groupId>
 			<artifactId>job-server-api_2.10</artifactId>
@@ -168,28 +170,11 @@
 					</includes>
 				</configuration>
 			</plugin>
-			<plugin>
-				<artifactId>maven-assembly-plugin</artifactId>
-				<configuration>
-					<descriptorRefs>
-						<descriptorRef>jar-with-dependencies</descriptorRef>
-					</descriptorRefs>
-					<archive>
-						<manifest>
-							<mainClass></mainClass>
-						</manifest>
-					</archive>
-				</configuration>
-				<executions>
-					<execution>
-						<id>make-assembly</id>
-						<phase>package</phase>
-						<goals>
-							<goal>single</goal>
-						</goals>
-					</execution>
-				</executions>
-			</plugin>
+			<!-- <plugin> <artifactId>maven-assembly-plugin</artifactId> <configuration> 
+				<descriptorRefs> <descriptorRef>jar-with-dependencies</descriptorRef> </descriptorRefs> 
+				<archive> <manifest> <mainClass></mainClass> </manifest> </archive> </configuration> 
+				<executions> <execution> <id>make-assembly</id> <phase>package</phase> <goals> 
+				<goal>single</goal> </goals> </execution> </executions> </plugin> -->
 			<plugin>
 				<artifactId>maven-compiler-plugin</artifactId>
 				<version>3.1</version>
@@ -219,7 +204,7 @@
 			<id>ossrh</id>
 			<url>https://oss.sonatype.org/content/repositories/snapshots</url>
 		</repository>
-		
+
 		<repository>
 			<id>jobserver</id>
 			<url>https://dl.bintray.com/spark-jobserver/maven</url>
@@ -227,5 +212,5 @@
 	</repositories>
 
 
-	<groupId>com.github.codegerm</groupId>
+
 </project>
