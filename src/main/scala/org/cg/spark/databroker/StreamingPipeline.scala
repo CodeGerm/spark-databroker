@@ -13,6 +13,10 @@ import com.typesafe.config.Config
 
 trait StreamingPipeline [KEY,EVENT] {
   
-   def handle(ssc: StreamingContext, messages: InputDStream[(KEY, EVENT)], config: Config)
+   def handle(
+       ssc: StreamingContext, 
+       messages: InputDStream[(KEY, EVENT)], 
+       args: Array[String],  
+       config: Config)
 
 }

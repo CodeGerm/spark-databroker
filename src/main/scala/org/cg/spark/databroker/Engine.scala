@@ -72,7 +72,7 @@ class Engine[EVENT <: Any: ClassTag, DECODER <: StreamingCoder[EVENT]: ClassTag]
     val messages = KafkaUtils.createDirectStream[String, EVENT, StringDecoder, DECODER](
       ssc, kafkaParams, topicsSet)
     pipeLine match {
-      case p: StreamingPipeline[String, EVENT] => p.handle(ssc, messages, config)
+      case p: StreamingPipeline[String, EVENT] => p.handle(ssc, messages, args, config)
       case _                                   => throw new ClassCastException
     }
   }
