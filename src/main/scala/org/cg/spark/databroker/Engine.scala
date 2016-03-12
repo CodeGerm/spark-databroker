@@ -53,28 +53,57 @@ class Engine[EVENT <: Any: ClassTag, DECODER <: StreamingCoder[EVENT]: ClassTag]
 
   //job server entry
   override def runJob(ssc: StreamingContext, config: Config): Any = {
-    val args: Array[String] = config.getString("input.string").split(" ").toArray
-    internalRun(args, ssc, config)
+    val args: Array[String] = config.getString("input.string").split('|').toArray
+    log.info("============JOB CONFIG BEGIN==============")
+    log.info(config.toString)
+    log.info("============JOB CONFIG END==============")
+    log.info("============JOB PARAMS BEGIN==============")
+    args.foreach { x => println(x) }
+    log.info("============JOB PARAMS END==============")
+    val streamCfg = initConfig(args)
+    log.info("============STREAM CONFIG BEGIN==============")
+    log.info(streamCfg.toString)
+    log.info("============STREAM CONFIG END==============")
+
+    internalRun(args, ssc, streamCfg, config)
+    log.info("Engine starting")
+    ssc.start()
+    ssc.awaitTermination()
+    
   }
 
   // internalRun
-  def internalRun(args: Array[String], ssc: StreamingContext, config: Config): Any = {
+  def internalRun(args: Array[String], ssc: StreamingContext, streamCfg: Config, config: Config): Any = {
+    
     // get params
     import scala.collection.JavaConverters._
-    val brokers = config.getString(CFG_BROKER)
-    val topicsSet = config.getStringList(CFG_TOPICS).asScala.toSet
-    val pipelineClzName = config.getString(CFG_PIPELINE_CLZ)
+    val brokers = streamCfg.getString(CFG_BROKER)
+    val topicsSet = streamCfg.getStringList(CFG_TOPICS).asScala.toSet
+    val pipelineClzName = streamCfg.getString(CFG_PIPELINE_CLZ)
+    
     val clz = Class.forName(pipelineClzName)
     val pipeLine = clz.newInstance()
 
+    log.info(s"load pipeline $clz")
     // Create direct kafka stream with brokers and topics
     val kafkaParams = Map[String, String]("metadata.broker.list" -> brokers)
     val messages = KafkaUtils.createDirectStream[String, EVENT, StringDecoder, DECODER](
       ssc, kafkaParams, topicsSet)
     pipeLine match {
-      case p: StreamingPipeline[String, EVENT] => p.handle(ssc, messages, args, config)
-      case _                                   => throw new ClassCastException
+      case p: StreamingPipeline[String, EVENT] => { log.info("begin handling"); p.handle(ssc, messages, args, config) }
+      case _                                   => {log.error(s"wrong event type $pipeLine"); throw new ClassCastException}
     }
+  }
+
+  // init configuration by using parameters
+  def initConfig(args: Array[String]): Config = {
+    val configURLString = args(0)
+    //load config
+    try { URL.setURLStreamHandlerFactory(new FsUrlStreamHandlerFactory()) } catch { case e: Throwable => ; };
+    val configURL = new URL(configURLString)
+    configHelper.initIfUndefined(configURL)
+    val config = configHelper.config
+    loadConfig(BROKER_CONFIG)
   }
 
   //main entry
@@ -90,14 +119,8 @@ class Engine[EVENT <: Any: ClassTag, DECODER <: StreamingCoder[EVENT]: ClassTag]
         """.stripMargin)
       System.exit(1)
     }
-    val configURLString = args(0)
-
-    //load config
-    URL.setURLStreamHandlerFactory(new FsUrlStreamHandlerFactory());
-    val configURL = new URL(configURLString)
-    configHelper.initIfUndefined(configURL)
-    val config = configHelper.config
-    val streamCfg = loadConfig(BROKER_CONFIG)
+    initConfig(args)
+    val streamCfg = initConfig(args)
     val hadoopCfg = Try[Config](loadConfig(HADOOP_CONFIG))
       .getOrElse(ConfigFactory.empty())
     // get params
@@ -109,7 +132,7 @@ class Engine[EVENT <: Any: ClassTag, DECODER <: StreamingCoder[EVENT]: ClassTag]
     hadoopCfg.entrySet().iterator().asScala.foreach(e => sc.hadoopConfiguration.setStrings(e.getKey, e.getValue.render()));
     val ssc = new StreamingContext(sc, Seconds(batchInterval))
 
-    internalRun(args, ssc, streamCfg)
+    internalRun(args, ssc, streamCfg, configHelper.config.get)
 
     ssc.start()
     ssc.awaitTermination()
