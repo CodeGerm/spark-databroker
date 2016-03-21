@@ -60,7 +60,9 @@ object JobServerChannelExample extends IChannelListener {
     }
 
     val Array(channelName) = args
-    val channel = SparkJobServerChannel("http://192.168.99.100:18090", "/Users/yanlinwang/Documents/centrify/git/platform/com.centrify.platform.databroker/target/com.centrify.platform.databroker-0.0.1-SNAPSHOT.jar", channelName, 6000)
+    //val channel = SparkJobServerChannel("http://192.168.99.100:18090", "/Users/yanlinwang/Documents/centrify/git/platform/com.centrify.platform.databroker/target/com.centrify.platform.databroker-0.0.1-SNAPSHOT.jar", channelName, 6000)
+    val channel = SparkJobServerChannel("http://192.168.99.100:18090", channelName, 6000)
+    
     channel.registerListener(this)
     channel.init()
     println(channel.actorUrl)
