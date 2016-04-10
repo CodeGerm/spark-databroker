@@ -11,6 +11,9 @@ import scala.reflect.ClassTag
  *
  */
 
+/**
+ * StreamingCoder spark encoder and decoder 
+ */
 trait StreamingCoder[Event] extends Decoder[Event] with Encoder[Event]  {
   
 }
