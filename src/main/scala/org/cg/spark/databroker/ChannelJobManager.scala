@@ -51,7 +51,7 @@ class ChannelJobManager(quorom: JobServerQuorum) extends Logging {
   /**
    * list all channel jobs on all job servers in the quorum
    *
-   * return map of [channelName, ChannelJob]
+   * return map of [jobId, ChannelJob]
    * channelName is job server context name
    *
    * Note: the job stream interval is not accurate, we need to get it from context
@@ -67,7 +67,7 @@ class ChannelJobManager(quorom: JobServerQuorum) extends Logging {
             val id = job.getJobId
             val cfg = client.getConfig(id)
             val channelJob = new ChannelJob(Some(id), ctx, job.getClassPath, TopicUtil.cfgToTopic(cfg), Some(cid), isRunning(job.getStatus), 10)
-            ctx -> channelJob
+            id -> channelJob
           }
       }
     }
@@ -92,7 +92,7 @@ class ChannelJobManager(quorom: JobServerQuorum) extends Logging {
    * returns the id (url) of the server that's running the channel (context)
    */
   def findRunningChannel(channelName: String) = {
-    listRunningChannelJobs().filter(p => p match { case (key, job) => job.isRunning })
+    listRunningChannelJobs().filter(p => p match { case (id, job) => job.isRunning })
   }
 
   /**
@@ -144,7 +144,9 @@ class ChannelJobManager(quorom: JobServerQuorum) extends Logging {
    * stopChannelJob => stop & remove the running context
    */
   def stopChannelJob(channelName: String) {
-    findRunningChannel(channelName).foreach(p => p match { case (key, job) => quorom.jobClientsMap.get(job.serverId.get).get.deleteContext(channelName) })
+    findRunningChannel(channelName).foreach(p => p match {
+      case (key, job) => quorom.jobClientsMap.get(job.serverId.get).get.deleteContext(channelName) 
+    })
   }
 
   // subscriber manager
