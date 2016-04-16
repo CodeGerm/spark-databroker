@@ -1,0 +1,9 @@
+{
+	"namespace": "org.cg.spark.databroker.example",
+	"type": "record",
+	"name": "Tweet",
+	"fields": [
+		{"name": "name", "type": "string"},
+		{"name": "text", "type": "string"}
+	]
+}

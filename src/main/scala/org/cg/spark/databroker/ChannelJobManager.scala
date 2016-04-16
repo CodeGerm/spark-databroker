@@ -145,8 +145,21 @@ class ChannelJobManager(quorom: JobServerQuorum) extends Logging {
    */
   def stopChannelJob(channelName: String) {
     findRunningChannel(channelName).foreach(p => p match {
-      case (key, job) => quorom.jobClientsMap.get(job.serverId.get).get.deleteContext(channelName) 
+      case (key, job) => quorom.jobClientsMap.get(job.serverId.get).get.deleteContext(channelName)
     })
+  }
+
+  /**
+   * force stop channel by deleting context
+   */
+  def stopChannelContext(channelName: String) {
+    import scala.collection.JavaConverters._
+    quorom.jobClientsMap.foreach { p =>
+      p match {
+        case (cid, client) =>
+          client.deleteContext(channelName)
+      }
+    }
   }
 
   // subscriber manager

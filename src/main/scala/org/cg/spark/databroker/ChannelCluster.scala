@@ -13,6 +13,7 @@ import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory
 import akka.actor.Props
 import scala.util.Try
+import java.io.File
 
 /**
  *
@@ -24,7 +25,7 @@ import scala.util.Try
  * 
  * The cluster (seed server of the cluster) of all spark channels.
  * 
- * The companion configuration is channel_cluster_server in resource
+ * The companion configuration is channel_cluster_server in resource by default
  */
 object ChannelCluster {
   
@@ -36,14 +37,22 @@ object ChannelCluster {
     //process cmd params
     if (args.length < 1) {
       System.err.println(s"""
-        |Usage: $className <clusterName>  
+        |Usage: $className <configFile> <clusterName>  
         |  <clusterName> the name of the channel cluster and the name of the Akka system
         |  default cluster name is $defaultClusterName
         """.stripMargin)
     }
-    val name = Try(args(0)).getOrElse(defaultClusterName)
+    println("Channel Server Starting...")
+    val cfgPath = Try(args(0))
+    val config = { 
+      if (cfgPath.isFailure)
+        ConfigFactory.load(configName)
+      else
+        ConfigFactory.parseFile(new File(cfgPath.get))
+    }
+    val name = Try(args(1)).getOrElse(defaultClusterName)
     
-    val system  = ActorSystem (name, ConfigFactory.load(configName))
+    val system  = ActorSystem (name, config.withFallback(ConfigFactory.load()))
     val joinAddress = Cluster(system).selfAddress
     Cluster(system).join(joinAddress);
     system.actorOf(Props[ChannelCluster], "ChannelClusterServer")
