@@ -70,6 +70,7 @@ abstract class ChannelProducerTransformer[IN <: Product: TypeTag] extends Transf
         import sqlContext.implicits._
         val df: DataFrame = rdd.toDF()
         df.registerTempTable(topic.name)
+        //sqlContext.cacheTable(topic.name)
         val result = sqlContext.sql(topic.ql)
         val columns = result.columns
         val data = result.collect()

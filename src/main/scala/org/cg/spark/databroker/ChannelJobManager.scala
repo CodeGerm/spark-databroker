@@ -147,6 +147,7 @@ class ChannelJobManager(quorom: JobServerQuorum) extends Logging {
     findRunningChannel(channelName).foreach(p => p match {
       case (key, job) => quorom.jobClientsMap.get(job.serverId.get).get.deleteContext(channelName)
     })
+    
   }
 
   /**
