@@ -82,6 +82,10 @@ abstract class ChannelProducerTransformer[IN <: Product: TypeTag] extends Transf
           producerActor ! Produce(topic.name, columns, data)
         } catch {
           case e: Throwable => logger.error(s"Error in handling sliding window $topic.name", e)
+        } finally {          
+          result.unpersist()
+          rdd.unpersist(false)
+          sqlContext.dropTempTable(topic.name)
         }
       }
       i = i + 1

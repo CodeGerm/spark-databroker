@@ -11,6 +11,7 @@ import akka.contrib.pattern.DistributedPubSubMediator
 import akka.contrib.pattern.DistributedPubSubExtension
 import akka.contrib.pattern.DistributedPubSubMediator.Subscribe
 import akka.contrib.pattern.DistributedPubSubMediator.Publish
+import org.apache.spark.Logging
 
 /**
  *
@@ -21,7 +22,7 @@ import akka.contrib.pattern.DistributedPubSubMediator.Publish
 /**
  * ChannelProducer companion object
  */
-object ChannelProducer {
+object ChannelProducer extends Logging{
   @transient def props(name: String): Props = Props(classOf[ChannelProducer], name)
   case class Produce(topic: String, columns: Array[String], data: Array[Row])
   case class Message (from : String, topic: String, columns: Array[String], data: Array[Row])
@@ -43,8 +44,10 @@ class ChannelProducer(name: String, channel : String) extends Actor with ActorLo
     cluster unsubscribe self
 
   def receive = {
-    case ChannelProducer.Produce(topic, columns, data) =>
+    case ChannelProducer.Produce(topic, columns, data) => {
+      log.info(s"receive data feed from channel/topic $topic")
       mediator ! Publish (ChannelUtil.clusterTopic(channel, topic), ChannelProducer.Message (this.name, topic, columns, data))
+    }
     case ChannelProducer.Message(from, topic, columes, data) =>
       println (s"from $from, topic $topic, $columes(0), $data(0)) ")
   }
