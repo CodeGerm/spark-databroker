@@ -23,20 +23,19 @@ import spark.jobserver.SparkJobValid
 import spark.jobserver.SparkJobValidation
 import spark.jobserver.SparkStreamingJob
 
-
 /**
  *
  * @author Yanlin Wang (wangyanlin@gmail.com)
  *
  */
- 
+
 /**
- * Channel broker implementation using spark streaming job (job server job). 
- * 
+ * Channel broker implementation using spark streaming job (job server job).
+ *
  * The assumptions are :
  * 			the message is (String, Event)
- * 			the job configurations is passed through Config  
- * 
+ * 			the job configurations is passed through Config
+ *
  *
  * @author Yanlin Wang (wangyanlin@gmail.com)
  *
@@ -52,13 +51,15 @@ class ChannelSparkBroker[EVENT <: Any: ClassTag, DECODER <: StreamingCoder[EVENT
   final val CFG_TOPICS = "topics"
   final val CFG_BATCH_INTERVAL = "batch.interval"
   final val CFG_PIPELINE_CLZ = "pipeline.class"
+  final val CFG_CHKP_DIR = "checkpoint.dir"
+  final val CFG_CHKP_INTERVAL = "checkpoint.interval"
 
   val configHelper: TransformationPipelineContext = new TransformationPipelineContext
 
   def loadConfig(node: String): Config = configHelper.loadConfig(node)
 
   /**
-   * validates the runtime configuration 
+   * validates the runtime configuration
    */
   override def validate(sc: StreamingContext, config: Config): SparkJobValidation = {
     Try(config.getString("input.string"))
@@ -97,14 +98,14 @@ class ChannelSparkBroker[EVENT <: Any: ClassTag, DECODER <: StreamingCoder[EVENT
   /**
    *  init configuration by using parameters
    */
-  def initConfig(config: Config): Config = {   
+  def initConfig(config: Config): Config = {
     configHelper.initIfUndefined(config)
     loadConfig(BROKER_CONFIG)
   }
 
- /**
-  *  init configuration by using parameters
-  */
+  /**
+   *  init configuration by using parameters
+   */
   def initConfig(args: Array[String]): Config = {
     val configURLString = args(0)
     //load config
@@ -122,7 +123,10 @@ class ChannelSparkBroker[EVENT <: Any: ClassTag, DECODER <: StreamingCoder[EVENT
     import scala.collection.JavaConverters._
     val brokers = streamCfg.getString(CFG_BROKER)
     val topicsSet = streamCfg.getStringList(CFG_TOPICS).asScala.toSet
-    
+
+    val chkpointDir = if (streamCfg.getString(CFG_CHKP_DIR).isEmpty) None else Some(streamCfg.getString(CFG_CHKP_DIR) + "/" + this.getClass.getName)
+    val chkpointInterval = Option(streamCfg.getLong(CFG_CHKP_INTERVAL)).getOrElse(5L)
+
     //load pipeline class and init instance from configuration
     val pipelineClzName = streamCfg.getString(CFG_PIPELINE_CLZ)
     val clz = Class.forName(pipelineClzName)
@@ -133,15 +137,18 @@ class ChannelSparkBroker[EVENT <: Any: ClassTag, DECODER <: StreamingCoder[EVENT
     val kafkaParams = Map[String, String]("metadata.broker.list" -> brokers)
     val messages = KafkaUtils.createDirectStream[String, EVENT, StringDecoder, DECODER](
       ssc, kafkaParams, topicsSet)
+    // checkpoint is to resolve linage issue instead of recovery  
+    if (chkpointDir.isDefined)
+      messages.checkpoint(Seconds(chkpointInterval))
+
     pipeLine match {
       case p: ChannelJobPipeline[String, EVENT] => { log.info("begin handling"); p.handle(ssc, messages, topics, config) }
       case _                                    => { log.error(s"wrong event type $pipeLine"); throw new ClassCastException }
     }
   }
 
- 
   /**
-   * main 
+   * main
    */
   def main(args: Array[String]) {
     val className = this.getClass.getName
@@ -155,7 +162,7 @@ class ChannelSparkBroker[EVENT <: Any: ClassTag, DECODER <: StreamingCoder[EVENT
         """.stripMargin)
       System.exit(1)
     }
- 
+
     // load parameter from config file running standalone
     val streamCfg = initConfig(args)
     // get params
@@ -165,7 +172,7 @@ class ChannelSparkBroker[EVENT <: Any: ClassTag, DECODER <: StreamingCoder[EVENT
     val conf = new SparkConf().setAppName("ChannelEngine")
     val sc = new SparkContext(conf)
     val ssc = new StreamingContext(sc, Seconds(batchInterval))
-    val topics = TopicUtil.stringToTopicSet (args(1))
+    val topics = TopicUtil.stringToTopicSet(args(1))
     internalRun(topics, ssc, streamCfg, configHelper.config.get)
 
     ssc.start()
