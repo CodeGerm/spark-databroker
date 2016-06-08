@@ -103,7 +103,8 @@ class ChannelJobManager(quorom: JobServerQuorum) extends Logging {
     import scala.collection.JavaConverters._
     //check if channel job's context is running
     if (!findRunningChannel(job.name).isEmpty) {
-      log.error(s"failed to run job $job, it is running already")
+//      log.error(s"failed to run job $job, it is running already")
+      println("[ERROR] failed to run job, which is running already." + job)
       true
     } else {
       //create streaming context
@@ -114,28 +115,34 @@ class ChannelJobManager(quorom: JobServerQuorum) extends Logging {
       val opt = quorom.jobServerClient
       if (!opt.isDefined) {
         val msg = s"failed to run job $job, quorom is not avaliable"
-        log.error(msg)
+//        log.error(msg)
+        println("[ERROR] " + msg)
         throw new IllegalStateException(msg)
       }
       val client = opt.get
       if (!client.getContexts().contains(job.name)) {
-        log.info(s"creating context for job $job")
+//        log.info(s"creating context for job $job")
+        println("[INFO] creating context for job " + job)
         if (!client.createContext(job.name, params.asJava)) {
           val msg = s"failed to create context for job $job"
-          log.error(msg)
+//          log.error(msg)
+          println("[ERROR] " + msg)
           throw new IllegalStateException(msg)
         }
       } else {
-        log.info(s"context exists for job $job")
+//        log.info(s"context exists for job $job")
+        println("[INFO] context exists for job " + job)
       }
 
-      log.info(s"run channel job $job")
+//      log.info(s"run channel job $job")
+      println("[INFO] run channel job " + job)
       val jobParams = Map(
         ISparkJobServerClientConstants.PARAM_APP_NAME -> job.className,
         ISparkJobServerClientConstants.PARAM_CONTEXT -> job.name,
         ISparkJobServerClientConstants.PARAM_CLASS_PATH -> job.className);
       val result = client.startJob("input.string = " + TopicUtil.topicsToString(job.topics), jobParams.asJava);
-      log.info(s"run channel job $job with status: $result")
+//      log.info(s"run channel job $job with status: $result")
+      println("[INFO] run channel job with status " + job + " result:" + result);
       isRunning(result.getStatus)
     }
   }
