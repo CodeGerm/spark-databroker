@@ -132,6 +132,9 @@ class ChannelSparkBroker[EVENT <: Any: ClassTag, DECODER <: StreamingCoder[EVENT
     val clz = Class.forName(pipelineClzName)
     val pipeLine = clz.newInstance()
 
+    if (chkpointDir.isDefined)
+      ssc.checkpoint(chkpointDir.get)
+
     log.info(s"load pipeline $clz")
     // Create direct kafka stream with brokers and topics
     val kafkaParams = Map[String, String]("metadata.broker.list" -> brokers)
