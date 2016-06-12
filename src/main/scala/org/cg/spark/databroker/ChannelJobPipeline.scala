@@ -51,8 +51,11 @@ abstract class ChannelProducerTransformer[IN <: Product: TypeTag] extends Transf
   final val CFG_CLUSTER_NAME = "broker.cluster.name"
   val producerActor = {
     val systemName = config.getString(CFG_CLUSTER_NAME)
-    val system = ActorSystem(systemName, config.getConfig("broker").withFallback(ConfigFactory.load)) 
-    system.actorOf(Props(new ChannelProducer (systemName, topics(0).channelName)))    
+    val brokerCfg = config.getConfig("broker")
+    logger.info("----- Data Broker Configuration -----")
+    logger.info(brokerCfg.toString())
+    val system = ActorSystem(systemName, brokerCfg.withFallback(ConfigFactory.load)) 
+    system.actorOf(Props(new ChannelProducer (systemName, topics(0).channelName)).withMailbox("bounded-mailbox"))    
   }
 
   override def transform() = {
