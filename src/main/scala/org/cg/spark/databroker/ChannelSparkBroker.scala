@@ -125,7 +125,7 @@ class ChannelSparkBroker[EVENT <: Any: ClassTag, DECODER <: StreamingCoder[EVENT
     val topicsSet = streamCfg.getStringList(CFG_TOPICS).asScala.toSet
 
     val chkpointDir = if (streamCfg.getString(CFG_CHKP_DIR).isEmpty) None else Some(streamCfg.getString(CFG_CHKP_DIR) + "/" + this.getClass.getName)
-    val chkpointInterval = Option(streamCfg.getLong(CFG_CHKP_INTERVAL)).getOrElse(5L)
+    val chkpointInterval = Option(streamCfg.getLong(CFG_CHKP_INTERVAL)).getOrElse(300L)
 
     //load pipeline class and init instance from configuration
     val pipelineClzName = streamCfg.getString(CFG_PIPELINE_CLZ)
@@ -134,7 +134,12 @@ class ChannelSparkBroker[EVENT <: Any: ClassTag, DECODER <: StreamingCoder[EVENT
 
     if (chkpointDir.isDefined)
       ssc.checkpoint(chkpointDir.get)
-
+    
+    // populate pass in config to spark conf  
+    val conf = ssc.sparkContext.hadoopConfiguration  
+    import scala.collection.JavaConverters._
+    streamCfg.entrySet().asScala.foreach(e => conf.set(e.getKey, e.getValue.unwrapped().toString()));
+    
     log.info(s"load pipeline $clz")
     // Create direct kafka stream with brokers and topics
     val kafkaParams = Map[String, String]("metadata.broker.list" -> brokers)
