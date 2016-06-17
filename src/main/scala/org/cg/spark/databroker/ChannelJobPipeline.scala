@@ -44,11 +44,14 @@ trait ChannelJobPipeline[KEY, EVENT] {
  * 
  */
 abstract class ChannelProducerTransformer[IN <: Product: TypeTag] extends Transformer[Unit] with Logging {
+    
   def inputStream: DStream[IN]
   def topics: Array[Topic]
   def config: Config
 
   final val CFG_CLUSTER_NAME = "broker.cluster.name"
+  final val CFG_CHKP_INTERVAL = "checkpoint.interval"
+  
   val producerActor = {
     val systemName = config.getString(CFG_CLUSTER_NAME)
     val brokerCfg = config.getConfig("broker")
@@ -61,12 +64,15 @@ abstract class ChannelProducerTransformer[IN <: Product: TypeTag] extends Transf
   override def transform() = {
     import scala.collection.JavaConverters._
     val windowStreams = new Array[DStream[IN]](topics.length)
-
+//    val conf = inputStream.context.sparkContext.hadoopConfiguration
+//    val interval = Option(conf.getInt(CFG_CHKP_INTERVAL, 600)).getOrElse(600)
+//    inputStream.checkpoint(Seconds(interval))
     val systemName = config
     var i = 0
     // driver loop
     topics.foreach { topic =>
-      windowStreams(i) = inputStream.window(Seconds(topic.windowSec), Seconds(topic.slideSec))
+      windowStreams(i) = inputStream.window(Seconds(topic.windowSec), Seconds(topic.slideSec))      
+      
       // worker loop
       windowStreams(i).foreachRDD { (rdd: RDD[IN], time: Time) =>
         val sqlContext = SQLContext.getOrCreate(rdd.sparkContext)

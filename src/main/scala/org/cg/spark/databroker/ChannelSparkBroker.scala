@@ -124,8 +124,8 @@ class ChannelSparkBroker[EVENT <: Any: ClassTag, DECODER <: StreamingCoder[EVENT
     val brokers = streamCfg.getString(CFG_BROKER)
     val topicsSet = streamCfg.getStringList(CFG_TOPICS).asScala.toSet
 
-    val chkpointDir = if (streamCfg.getString(CFG_CHKP_DIR).isEmpty) None else Some(streamCfg.getString(CFG_CHKP_DIR) + "/" + this.getClass.getName)
-    val chkpointInterval = Option(streamCfg.getLong(CFG_CHKP_INTERVAL)).getOrElse(300L)
+    val chkpointDir = if (Try(streamCfg.getString( CFG_CHKP_DIR)).isFailure) None else Some(streamCfg.getString(CFG_CHKP_DIR) + "/" + this.getClass.getName)
+    val chkpointInterval = Try(streamCfg.getLong(CFG_CHKP_INTERVAL)).getOrElse(300L)
 
     //load pipeline class and init instance from configuration
     val pipelineClzName = streamCfg.getString(CFG_PIPELINE_CLZ)
