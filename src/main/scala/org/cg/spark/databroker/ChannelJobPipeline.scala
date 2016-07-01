@@ -1,22 +1,27 @@
 package org.cg.spark.databroker
 
-import org.apache.spark.streaming.StreamingContext
-import org.apache.spark.streaming.dstream.InputDStream
-import com.typesafe.config.Config
-import org.cg.monadic.transformer.Transformer
-import org.apache.spark.Logging
+import scala.reflect.ClassTag
+import scala.reflect.internal.Types
+import scala.reflect.runtime.JavaUniverse
+import scala.reflect.runtime.SymbolTable
 import scala.reflect.runtime.universe.TypeTag
-import org.apache.spark.streaming.dstream.DStream
-import org.apache.spark.streaming.Seconds
-import org.apache.spark.streaming.Time
+import org.apache.spark.Logging
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.DataFrame
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.SQLContext
+import org.apache.spark.streaming.Seconds
+import org.apache.spark.streaming.StreamingContext
+import org.apache.spark.streaming.Time
+import org.apache.spark.streaming.dstream.DStream
+import org.apache.spark.streaming.dstream.InputDStream
+import org.cg.monadic.transformer.Transformer
+import com.typesafe.config.Config
+import com.typesafe.config.ConfigFactory
 import akka.actor.ActorRef
 import akka.actor.ActorSystem
-import com.typesafe.config.ConfigFactory
 import akka.actor.Props
+import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.Row
 import org.cg.spark.databroker.ChannelProducer.Produce
 
 /**
@@ -27,7 +32,7 @@ import org.cg.spark.databroker.ChannelProducer.Produce
 
 /**
  * ChannelJobPipeline is spark transformation pipeline which handles spark stream data
- * 
+ *
  */
 trait ChannelJobPipeline[KEY, EVENT] {
 
@@ -38,64 +43,74 @@ trait ChannelJobPipeline[KEY, EVENT] {
     config: Config)
 }
 
-
 /**
  * ChannelProducerTransformer convert the channel topics into spark streams and data producers
- * 
+ *
  */
 abstract class ChannelProducerTransformer[IN <: Product: TypeTag] extends Transformer[Unit] with Logging {
-    
+
   def inputStream: DStream[IN]
   def topics: Array[Topic]
   def config: Config
 
   final val CFG_CLUSTER_NAME = "broker.cluster.name"
   final val CFG_CHKP_INTERVAL = "checkpoint.interval"
-  
+
   val producerActor = {
     val systemName = config.getString(CFG_CLUSTER_NAME)
     val brokerCfg = config.getConfig("broker")
     logger.info("----- Data Broker Configuration -----")
     logger.info(brokerCfg.toString())
-    val system = ActorSystem(systemName, brokerCfg.withFallback(ConfigFactory.load)) 
-    system.actorOf(Props(new ChannelProducer (systemName, topics(0).channelName)).withMailbox("bounded-mailbox"))    
+    val system = ActorSystem(systemName, brokerCfg.withFallback(ConfigFactory.load))
+    system.actorOf(Props(new ChannelProducer(systemName, topics(0).channelName)).withMailbox("bounded-mailbox"))
   }
 
   override def transform() = {
     import scala.collection.JavaConverters._
     val windowStreams = new Array[DStream[IN]](topics.length)
-//    val conf = inputStream.context.sparkContext.hadoopConfiguration
-//    val interval = Option(conf.getInt(CFG_CHKP_INTERVAL, 600)).getOrElse(600)
-//    inputStream.checkpoint(Seconds(interval))
+    val sqlContext = SQLContext.getOrCreate(inputStream.context.sparkContext)
+    //    val conf = inputStream.context.sparkContext.hadoopConfiguration
+    //    val interval = Option(conf.getInt(CFG_CHKP_INTERVAL, 600)).getOrElse(600)
+    //    inputStream.checkpoint(Seconds(interval))
     val systemName = config
+
+    var schema = null: StructType
     var i = 0
     // driver loop
     topics.foreach { topic =>
-      windowStreams(i) = inputStream.window(Seconds(topic.windowSec), Seconds(topic.slideSec))      
-      
+      windowStreams(i) = inputStream.window(Seconds(topic.windowSec), Seconds(topic.slideSec))
+
       // worker loop
       windowStreams(i).foreachRDD { (rdd: RDD[IN], time: Time) =>
-        val sqlContext = SQLContext.getOrCreate(rdd.sparkContext)
+
         import sqlContext.implicits._
-        val df: DataFrame = rdd.toDF()
+
+        var df: DataFrame = null
+
+        if (schema == null) {
+          df = rdd.toDF
+          schema = df.schema
+        } else {
+          val rowRDD = rdd.map { event => Row(event.productIterator.toSeq) }
+          df = sqlContext.createDataFrame(rowRDD, schema)
+        }
         df.registerTempTable(topic.name)
         //sqlContext.cacheTable(topic.name)
         val result = sqlContext.sql(topic.ql)
         val columns = result.columns
         val data = result.collect()
-        
-        
+        //val data = result.count()
         try {
-          if (data.length>0)
-          //listener.onChannelData(topic.name, columns, data)
-          producerActor ! Produce(topic.name, columns, data)
+          if (data.length > 0) {
+            producerActor ! Produce(topic.name, columns, data)
+          }
         } catch {
           case e: Throwable => logger.error(s"Error in handling sliding window $topic.name", e)
-        } finally {          
-          result.unpersist()
-          rdd.unpersist(false)
-          sqlContext.dropTempTable(topic.name)
+        } finally {
+          df.unpersist()
+          rdd.localCheckpoint()
         }
+
       }
       i = i + 1
     }
