@@ -23,6 +23,9 @@ import akka.actor.Props
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.Row
 import org.cg.spark.databroker.ChannelProducer.Produce
+import org.apache.spark.sql.catalyst.ScalaReflection
+import org.apache.spark.sql.execution.RDDConversions
+import org.apache.spark.sql.SQLContextExt
 
 /**
  *
@@ -74,7 +77,8 @@ abstract class ChannelProducerTransformer[IN <: Product: TypeTag] extends Transf
     //    inputStream.checkpoint(Seconds(interval))
     val systemName = config
 
-    var schema = null: StructType
+    val schema = ScalaReflection.schemaFor[IN].dataType.asInstanceOf[StructType]
+
     var i = 0
     // driver loop
     topics.foreach { topic =>
@@ -83,34 +87,30 @@ abstract class ChannelProducerTransformer[IN <: Product: TypeTag] extends Transf
       // worker loop
       windowStreams(i).foreachRDD { (rdd: RDD[IN], time: Time) =>
 
-        import sqlContext.implicits._
+        if (!rdd.isEmpty()) {
+          import sqlContext.implicits._
 
-        var df: DataFrame = null
+          //val rowRDD = rdd.map { event => Row(event.productIterator.toSeq) }
+          //val df = sqlContext.createDataFrame(rowRDD, schema)
+          
+          val rowRDD = RDDConversions.productToRowRdd(rdd, schema.map(_.dataType))
+          val df = SQLContextExt.createDataFrameInternally(sqlContext, rowRDD, schema)
+          df.registerTempTable(topic.name)
+          val result = sqlContext.sql(topic.ql)
+          val columns = result.columns
+          val data = result.collect()
 
-        if (schema == null) {
-          df = rdd.toDF
-          schema = df.schema
-        } else {
-          val rowRDD = rdd.map { event => Row(event.productIterator.toSeq) }
-          df = sqlContext.createDataFrame(rowRDD, schema)
-        }
-        df.registerTempTable(topic.name)
-        //sqlContext.cacheTable(topic.name)
-        val result = sqlContext.sql(topic.ql)
-        val columns = result.columns
-        val data = result.collect()
-        //val data = result.count()
-        try {
-          if (data.length > 0) {
-            producerActor ! Produce(topic.name, columns, data)
+          try {
+            if (data.length > 0) {
+              producerActor ! Produce(topic.name, columns, data)
+            }
+          } catch {
+            case e: Throwable => logger.error(s"Error in handling sliding window $topic.name", e)
+          } finally {
+            df.unpersist()
+            rdd.localCheckpoint()
           }
-        } catch {
-          case e: Throwable => logger.error(s"Error in handling sliding window $topic.name", e)
-        } finally {
-          df.unpersist()
-          rdd.localCheckpoint()
         }
-
       }
       i = i + 1
     }
