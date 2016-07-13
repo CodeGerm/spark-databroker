@@ -19,6 +19,8 @@ import java.util.concurrent.ConcurrentHashMap
 import akka.cluster.Cluster
 import akka.contrib.pattern.DistributedPubSubExtension
 import akka.contrib.pattern.DistributedPubSubMediator.Publish
+import scala.util.Try
+
 /**
  *
  * @author Yanlin Wang (wangyanlin@gmail.com)
@@ -185,9 +187,19 @@ class ChannelJobManager(quorom: JobServerQuorum) extends Logging {
   val registry = new ConcurrentHashMap[String, ActorRef]().asScala
 
   /**
-   * subscribeTopic => subscribe
+   * subscribeTopic => subscribe (un-subscribe topic first then subscribe)
    */
   def subscribeTopic(channel: String, topic: String, listener: IChannelListener) {
+    //      log.info(s"first unsub channel:$channel topic: $topic")
+     println(s"[INFO] first unsub channel:$channel topic: $topic");
+    try {       
+      unSubscribeTopic(channel, topic) 
+    } catch {
+      case e : Exception => {
+    //      log.warn(s"failed the attempt to unSubscribe channel:$channel topic: $topic")
+       println(s"[WARN] failed the attempt to unSubscribe channel:$channel topic: $topic");        
+      }
+    }    
     registry.getOrElse(ChannelUtil.clusterTopic(channel, topic), system.actorOf(Props(new ChannelSubcriber(channel, topic, listener))))
   }
 
