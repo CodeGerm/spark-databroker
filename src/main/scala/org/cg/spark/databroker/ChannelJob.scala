@@ -41,4 +41,8 @@ object ChannelUtil {
   def clusterTopic (channel: String , topic: String)={
     channel + "_" + topic
   }
+  
+  def isTopicInChannel ( channel: String, clusterTopic : String ) = {
+     clusterTopic.contains(channel + "_")
+  }
 }

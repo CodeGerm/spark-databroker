@@ -12,7 +12,6 @@ import akka.actor.ActorSystem
 import scala.collection.mutable.Map
 import akka.actor.ActorRef
 import scala.collection.mutable.HashMap
-import scala.collection.mutable.ConcurrentMap
 import scala.collection.convert.Wrappers.ConcurrentMapWrapper
 import scala.collection.concurrent.Map
 import java.util.concurrent.ConcurrentHashMap
@@ -102,13 +101,26 @@ class ChannelJobManager(quorom: JobServerQuorum) extends Logging {
    *
    */
   def runChannelJob(job: ChannelJob, jarPath: Option[String] = None): Boolean = {
+
     import scala.collection.JavaConverters._
     //check if channel job's context is running
     if (!findRunningChannel(job.name).isEmpty) {
-//      log.error(s"failed to run job $job, it is running already")
+      //      log.error(s"failed to run job $job, it is running already")
       println("[ERROR] failed to run job, which is running already." + job)
       true
     } else {
+      if (mediator.isTerminated)
+        throw new IllegalStateException("Failed to start job mediator is dead!")
+      //remove all existing topics in this job
+      //log.info(s"[INFO] clean the registry for $job")
+      println(s"[INFO] clean the registry for $job")
+      registry.retain((k, v) => {
+        val isTheTopic = ChannelUtil.isTopicInChannel(job.name, k)
+        if (isTheTopic) stopTopic(k)
+        !isTheTopic
+      })
+      registry.foreach(p => println(p._1 + "-->" + p._2))
+
       //create streaming context
       val params = Map(PARAM_CONTEXT_FACTORY -> "spark.jobserver.context.StreamingContextFactory",
         PARAM_STREMAING_INTERVAL -> String.valueOf(job.intervalSec * 1000),
@@ -117,33 +129,33 @@ class ChannelJobManager(quorom: JobServerQuorum) extends Logging {
       val opt = quorom.jobServerClient
       if (!opt.isDefined) {
         val msg = s"failed to run job $job, quorom is not avaliable"
-//        log.error(msg)
+        //        log.error(msg)
         println("[ERROR] " + msg)
         throw new IllegalStateException(msg)
       }
       val client = opt.get
       if (!client.getContexts().contains(job.name)) {
-//        log.info(s"creating context for job $job")
+        //        log.info(s"creating context for job $job")
         println("[INFO] creating context for job " + job)
         if (!client.createContext(job.name, params.asJava)) {
           val msg = s"failed to create context for job $job"
-//          log.error(msg)
+          //          log.error(msg)
           println("[ERROR] " + msg)
           throw new IllegalStateException(msg)
         }
       } else {
-//        log.info(s"context exists for job $job")
+        //        log.info(s"context exists for job $job")
         println("[INFO] context exists for job " + job)
       }
 
-//      log.info(s"run channel job $job")
+      //      log.info(s"run channel job $job")
       println("[INFO] run channel job " + job)
       val jobParams = Map(
         ISparkJobServerClientConstants.PARAM_APP_NAME -> job.className,
         ISparkJobServerClientConstants.PARAM_CONTEXT -> job.name,
         ISparkJobServerClientConstants.PARAM_CLASS_PATH -> job.className);
       val result = client.startJob("input.string = " + TopicUtil.topicsToString(job.topics), jobParams.asJava);
-//      log.info(s"run channel job $job with status: $result")
+      //      log.info(s"run channel job $job with status: $result")
       println("[INFO] run channel job with status " + job + " result:" + result);
       isRunning(result.getStatus)
     }
@@ -156,7 +168,7 @@ class ChannelJobManager(quorom: JobServerQuorum) extends Logging {
     findRunningChannel(channelName).foreach(p => p match {
       case (key, job) => quorom.jobClientsMap.get(job.serverId.get).get.deleteContext(channelName)
     })
-    
+
   }
 
   /**
@@ -182,7 +194,6 @@ class ChannelJobManager(quorom: JobServerQuorum) extends Logging {
 
   val cluster = Cluster(system)
   val mediator = DistributedPubSubExtension(system).mediator
-
   import scala.collection.convert.decorateAsScala._
   val registry = new ConcurrentHashMap[String, ActorRef]().asScala
 
@@ -191,22 +202,27 @@ class ChannelJobManager(quorom: JobServerQuorum) extends Logging {
    */
   def subscribeTopic(channel: String, topic: String, listener: IChannelListener) {
     //      log.info(s"first unsub channel:$channel topic: $topic")
-     println(s"[INFO] first unsub channel:$channel topic: $topic");
-    try {       
-      unSubscribeTopic(channel, topic) 
+    println(s"[INFO] first unsub channel:$channel topic: $topic");
+    try {
+      unSubscribeTopic(channel, topic)
     } catch {
-      case e : Exception => {
-    //      log.warn(s"failed the attempt to unSubscribe channel:$channel topic: $topic")
-       println(s"[WARN] failed the attempt to unSubscribe channel:$channel topic: $topic");        
+      case e: Exception => {
+        //      log.warn(s"failed the attempt to unSubscribe channel:$channel topic: $topic")
+        println(s"[WARN] failed the attempt to unSubscribe channel:$channel topic: $topic");
       }
-    }    
+    }
     registry.getOrElse(ChannelUtil.clusterTopic(channel, topic), system.actorOf(Props(new ChannelSubcriber(channel, topic, listener))))
   }
 
   def unSubscribeTopic(channel: String, topic: String) {
-    mediator ! Publish(ChannelUtil.clusterTopic(channel, topic), ChannelSubcriber.Stop)
+    stopTopic(ChannelUtil.clusterTopic(channel, topic))
     registry.remove(ChannelUtil.clusterTopic(channel, topic))
+  }
 
+  def stopTopic(fullTopicName: String) {
+    //        log.info(s"[INFO] stop topic $fullTopicName")
+    println(s"[INFO] stop topic $fullTopicName")
+    mediator ! Publish(fullTopicName, ChannelSubcriber.Stop)
   }
 
   private def isRunning(status: String) = {
