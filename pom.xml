@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.github.codegerm</groupId>
 	<artifactId>org.cg.spark-databroker</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>1.0.0-SNAPSHOT</version>
 	<name>${project.groupId}:${project.artifactId}</name>
 	<description>All kinds of data brokers implemented using spark, e.g. sliding window streaming data broker.</description>
 	<url>https://github.com/CodeGerm/spark-databroker</url>
