@@ -15,3 +15,10 @@ project/plugins/project/
 # Scala-IDE specific
 .scala_dependencies
 .worksheet
+docker/job-server/akka-cluster_2.10-2.3.11.jar
+docker/job-server/akka-contrib_2.10-2.3.11.jar
+docker/job-server/akka-remote_2.10-2.3.11.jar
+docker/job-server/org.cg.spark-databroker-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+docker/job-server/org.cg.spark-databroker-0.0.1-SNAPSHOT-javadoc.jar
+docker/job-server/org.cg.spark-databroker-0.0.1-SNAPSHOT-sources.jar
+docker/job-server/org.cg.spark-databroker-0.0.1-SNAPSHOT.jar
